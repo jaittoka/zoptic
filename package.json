@@ -1,0 +1,41 @@
+{
+  "name": "zoptic",
+  "version": "0.1.0",
+  "description": "Simple optics library for Typescript",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "jest src"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaittoka/zoptic.git"
+  },
+  "keywords": [
+    "optics",
+    "lens",
+    "prism",
+    "traversal",
+    "typescript"
+  ],
+  "author": "Jukka Aittokallio <jukka@aittokallio.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jaittoka/zoptic/issues"
+  },
+  "homepage": "https://github.com/jaittoka/zoptic#readme",
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "fast-check": "^3.15.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  }
+}
