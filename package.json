@@ -1,6 +1,6 @@
 {
   "name": "zoptic",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Simple optics library for Typescript",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
