@@ -34,6 +34,9 @@ export type Chain<O extends OpticKind, S, A> = Optic<O, S, A> & {
   ) => Chain<ComposeMap[O]["Traversal"], S, Elem<A>>;
   at: (index: number) => Chain<ComposeMap[O]["Optional"], S, Elem<A>>;
   opt: () => Chain<ComposeMap[O]["Optional"], S, NonNullable<A>>;
+  guard: <B extends A>(
+    g: (v: A) => v is B
+  ) => Chain<ComposeMap[O]["Optional"], S, B>;
   compose: <Other extends OpticKind, B>(
     other: Optic<Other, A, B>
   ) => Chain<ComposeMap[O][Other], S, B>;
@@ -81,6 +84,19 @@ function _optic<O extends OpticKind, S, A>(
           update: (f) => (a) =>
             Array.isArray(a) ? (updateAt(a, index, f) as A) : a,
         })
+      ),
+
+    guard: <B extends A>(
+      g: (v: A) => v is B
+    ): Chain<ComposeMap[O]["Optional"], S, B> =>
+      _optic(
+        compose(
+          self,
+          prism<A, B>(
+            (a) => (g(a) ? a : undefined),
+            (a) => a
+          )
+        )
       ),
 
     compose: <Other extends OpticKind, B>(
