@@ -18,6 +18,11 @@ const composeMap = {
 
 type ComposeMap = typeof composeMap;
 
+type ComposeKind<
+  O1 extends OpticKind,
+  O2 extends OpticKind
+> = ComposeMap[O1][O2];
+
 export type OpticKind = "One" | "Optional" | "Traversal";
 
 type Elem<A> = A extends Array<infer E> ? E : never;
@@ -28,81 +33,53 @@ export type Optic<O extends OpticKind, S, A> = {
 };
 
 export type Chain<O extends OpticKind, S, A> = Optic<O, S, A> & {
-  prop: <K extends keyof A>(name: K) => Chain<ComposeMap[O]["One"], S, A[K]>;
-  collect: (
-    pred: (item: Elem<A>, index: number) => boolean
-  ) => Chain<ComposeMap[O]["Traversal"], S, Elem<A>>;
-  at: (index: number) => Chain<ComposeMap[O]["Optional"], S, Elem<A>>;
-  opt: () => Chain<ComposeMap[O]["Optional"], S, NonNullable<A>>;
+  prop: <K extends keyof A>(name: K) => Chain<ComposeKind<O, "One">, S, A[K]>;
+  filter: (
+    pred?: (item: Elem<A>, index: number) => boolean
+  ) => Chain<ComposeKind<O, "Traversal">, S, Elem<A>>;
+  collect: () => Chain<ComposeKind<O, "Traversal">, S, Elem<A>>;
+  at: (index: number) => Chain<ComposeKind<O, "Optional">, S, Elem<A>>;
+  opt: () => Chain<ComposeKind<O, "Optional">, S, NonNullable<A>>;
   guard: <B extends A>(
     g: (v: A) => v is B
-  ) => Chain<ComposeMap[O]["Optional"], S, B>;
+  ) => Chain<ComposeKind<O, "Optional">, S, B>;
   compose: <Other extends OpticKind, B>(
     other: Optic<Other, A, B>
-  ) => Chain<ComposeMap[O][Other], S, B>;
+  ) => Chain<ComposeKind<O, Other>, S, B>;
 };
 
-function _optic<O extends OpticKind, S, A>(
-  base: Optic<O, S, A>
+function _chain<O extends OpticKind, S, A>(
+  optic: Optic<O, S, A>
 ): Chain<O, S, A> {
   const self: Chain<O, S, A> = {
-    type: base.type,
+    type: optic.type,
 
-    update: base.update,
+    update: optic.update,
 
-    prop: <K extends keyof A>(name: K): Chain<ComposeMap[O]["One"], S, A[K]> =>
-      _optic(
-        compose(self, {
-          type: "One",
-          update: (f) => (s) => updateProp(s, name, f),
-        })
-      ),
+    prop: <K extends keyof A>(name: K): Chain<ComposeKind<O, "One">, S, A[K]> =>
+      _chain(prop(self, name)),
 
-    opt: (): Chain<ComposeMap[O]["Optional"], S, NonNullable<A>> =>
-      _optic(
-        compose(self, {
-          type: "Optional",
-          update: (f) => (a) => a === undefined || a === null ? a : f(a),
-        })
-      ),
+    opt: (): Chain<ComposeKind<O, "Optional">, S, NonNullable<A>> =>
+      _chain(toOptional(self)),
 
-    collect: (
-      pred: (item: Elem<A>, index: number) => boolean
-    ): Chain<ComposeMap[O]["Traversal"], S, Elem<A>> =>
-      _optic(
-        compose(self, {
-          type: "Traversal",
-          update: (f) => (a) =>
-            Array.isArray(a) ? (mapArray(a, f, pred) as A) : a,
-        })
-      ),
+    filter: (
+      pred: (item: Elem<A>, index: number) => boolean = () => true
+    ): Chain<ComposeKind<O, "Traversal">, S, Elem<A>> =>
+      _chain(filter(self, pred)),
 
-    at: (index: number): Chain<ComposeMap[O]["Optional"], S, Elem<A>> =>
-      _optic(
-        compose(self, {
-          type: "Traversal",
-          update: (f) => (a) =>
-            Array.isArray(a) ? (updateAt(a, index, f) as A) : a,
-        })
-      ),
+    collect: (): Chain<ComposeKind<O, "Traversal">, S, Elem<A>> =>
+      _chain(filter(self, () => true)),
+
+    at: (index: number): Chain<ComposeKind<O, "Optional">, S, Elem<A>> =>
+      _chain(at(self, index)),
 
     guard: <B extends A>(
       g: (v: A) => v is B
-    ): Chain<ComposeMap[O]["Optional"], S, B> =>
-      _optic(
-        compose(
-          self,
-          prism<A, B>(
-            (a) => (g(a) ? a : undefined),
-            (a) => a
-          )
-        )
-      ),
+    ): Chain<ComposeKind<O, "Optional">, S, B> => _chain(toGuard(self, g)),
 
     compose: <Other extends OpticKind, B>(
       other: Optic<Other, A, B>
-    ): Chain<ComposeMap[O][Other], S, B> =>
-      _optic(compose<O, Other, S, A, B>(self, other)),
+    ): Chain<ComposeKind<O, Other>, S, B> => _chain(compose(self, other)),
   };
   return self;
 }
@@ -110,24 +87,74 @@ function _optic<O extends OpticKind, S, A>(
 export function compose<O1 extends OpticKind, O2 extends OpticKind, S, A, B>(
   o1: Optic<O1, S, A>,
   o2: Optic<O2, A, B>
-): Optic<ComposeMap[O1][O2], S, B> {
+): Optic<ComposeKind<O1, O2>, S, B> {
   return {
     type: composeMap[o1.type][o2.type],
     update: (f) => o1.update(o2.update(f)),
   };
 }
 
-export function optic<T>(): Chain<"One", T, T> {
-  return _optic({ type: "One", update: (f) => (s) => f(s) });
+export function toGuard<O extends OpticKind, S, A, B extends A>(
+  o: Optic<O, S, A>,
+  g: (a: A) => a is B
+) {
+  return compose(
+    o,
+    prismOptic<A, B>(
+      (a) => (g(a) ? a : undefined),
+      (a) => a
+    )
+  );
 }
 
-/**
- * One focus
- *
- * @param o Optic to use
- * @param s Container
- * @returns The focus value
- */
+export function prop<O extends OpticKind, S, A, K extends keyof A>(
+  o: Optic<O, S, A>,
+  name: K
+) {
+  return compose(
+    o,
+    lensOptic(
+      (s) => s[name],
+      (a, s) => setProp(s, name, a)
+    )
+  );
+}
+
+export function at<O extends OpticKind, S, A>(
+  o: Optic<O, S, A>,
+  index: number
+) {
+  return compose(
+    o,
+    affineOptic<A, Elem<A>>(
+      (a: A) => (Array.isArray(a) ? a[index] : undefined),
+      (a, s) => (Array.isArray(s) ? (updateAt(s, index, () => a) as A) : s)
+    )
+  );
+}
+
+export function toOptional<O extends OpticKind, S, A>(o: Optic<O, S, A>) {
+  return compose(o, {
+    type: "Optional",
+    update: (f: (a: NonNullable<A>) => NonNullable<A>) => (a) =>
+      a === undefined || a === null ? a : f(a),
+  });
+}
+
+export function filter<O extends OpticKind, S, A>(
+  o: Optic<O, S, A>,
+  pred: (a: Elem<A>, index: number) => boolean
+): Optic<"Traversal", S, Elem<A>> {
+  return compose(o, {
+    type: "Traversal",
+    update: (f) => (a) => Array.isArray(a) ? (mapArray(a, f, pred) as A) : a,
+  });
+}
+
+export function chain<T>(): Chain<"One", T, T> {
+  return _chain({ type: "One", update: (f) => (s) => f(s) });
+}
+
 export function get<S, A>(o: Optic<"One", S, A>, s: S): A {
   let a: A = undefined as A;
   o.update((v) => {
@@ -137,13 +164,6 @@ export function get<S, A>(o: Optic<"One", S, A>, s: S): A {
   return a;
 }
 
-/**
- * Optional
- *
- * @param o Optic to use
- * @param s Container
- * @returns The focus value or undefined
- */
 export function preview<S, A>(
   o: Optic<"One", S, A> | Optic<"Optional", S, A>,
   s: S
@@ -156,15 +176,7 @@ export function preview<S, A>(
   return a;
 }
 
-/**
- * Function to return multiple focuses
- *
- * @param o Optic to use
- * @param s Container
- * @returns Multiple focus values
- */
-
-export function traverse<S, A>(o: Optic<OpticKind, S, A>, s: S): A[] {
+export function collect<S, A>(o: Optic<OpticKind, S, A>, s: S): A[] {
   let a: A[] = [];
   o.update((v) => {
     a.push(v);
@@ -196,7 +208,7 @@ function _update<S, A>(
   };
 }
 
-export const adapter = <S, A>(
+export const adapterOptic = <S, A>(
   get: (s: S) => A,
   set: (a: A) => S
 ): Optic<"One", S, A> => ({
@@ -204,7 +216,7 @@ export const adapter = <S, A>(
   update: _update(get, set),
 });
 
-export const lens = <S, A>(
+export const lensOptic = <S, A>(
   get: (s: S) => A,
   set: (a: A, s: S) => S
 ): Optic<"One", S, A> => ({
@@ -212,7 +224,7 @@ export const lens = <S, A>(
   update: _update(get, set),
 });
 
-export const prism = <S, A>(
+export const prismOptic = <S, A>(
   get: (s: S) => A | undefined,
   set: (a: A) => S
 ): Optic<"Optional", S, A> => ({
@@ -220,7 +232,7 @@ export const prism = <S, A>(
   update: _updateOpt(get, set),
 });
 
-export const affine = <S, A>(
+export const affineOptic = <S, A>(
   get: (s: S) => A | undefined,
   set: (a: A, s: S) => S
 ): Optic<"Optional", S, A> => ({
@@ -228,7 +240,7 @@ export const affine = <S, A>(
   update: _updateOpt(get, set),
 });
 
-export const traversal = <S, A>(
+export const traversalOptic = <S, A>(
   get: (s: S) => A[],
   set: (a: A[], s: S) => S
 ): Optic<"Traversal", S, A> => ({
@@ -274,6 +286,10 @@ function updateAt<T>(
   result[index] = newValue;
 
   return result;
+}
+
+function setProp<T, K extends keyof T>(o: T, n: K, v: T[K]): T {
+  return updateProp(o, n, () => v);
 }
 
 function updateProp<T, K extends keyof T>(
