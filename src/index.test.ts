@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { get, chain, preview } from ".";
+import * as Z from ".";
 
 interface Address {
   street: string;
@@ -30,10 +30,10 @@ interface C {
 
 describe("properties", () => {
   it("should get element at index", () => {
-    const O = chain<number[]>().at(1);
+    const O = Z.chain<number[]>().at(1);
     fc.assert(
       fc.property(fc.array(fc.integer(), { minLength: 2 }), (data) => {
-        expect(preview(O, data)).toEqual(data[1]);
+        expect(Z.preview(O, data)).toEqual(data[1]);
       })
     );
   });
@@ -41,7 +41,7 @@ describe("properties", () => {
   it("should update correct item with filter", () => {
     const pred = (n: number) => n > 10;
     const modify = (n: number) => n * 13;
-    const O = chain<number[]>().filter(pred);
+    const O = Z.chain<number[]>().filter(pred);
     fc.assert(
       fc.property(fc.array(fc.integer()), (data) => {
         expect(O.update(modify)(data)).toEqual(
@@ -54,7 +54,7 @@ describe("properties", () => {
   it("should update correct deep items with filter", () => {
     const pred = (n: number) => n > 10;
     const modify = (n: number) => n + 1;
-    const O = chain<Person[]>().collect().prop("codes").filter(pred);
+    const O = Z.chain<Person[]>().collect().prop("codes").filter(pred);
 
     const personArb = fc
       .array(fc.integer())
@@ -76,7 +76,7 @@ describe("properties", () => {
   });
 
   it("should update element at index", () => {
-    const O = chain<number[]>().at(1);
+    const O = Z.chain<number[]>().at(1);
     fc.assert(
       fc.property(fc.array(fc.integer(), { minLength: 2 }), (data) => {
         expect(O.update((a) => a + 1)(data)[1]).toEqual(data[1] + 1);
@@ -85,16 +85,16 @@ describe("properties", () => {
   });
 
   it("should get property", () => {
-    const O = chain<Person>().prop("name");
+    const O = Z.chain<Person>().prop("name");
     fc.assert(
       fc.property(fc.record({ name: fc.string(), age: fc.nat() }), (data) => {
-        expect(get(O, data)).toEqual(data.name);
+        expect(Z.get(O, data)).toEqual(data.name);
       })
     );
   });
 
   it("should update property", () => {
-    const O = chain<Person>().prop("name");
+    const O = Z.chain<Person>().prop("name");
     fc.assert(
       fc.property(fc.record({ name: fc.string(), age: fc.nat() }), (data) => {
         expect(O.update((a) => a + "x")(data)).toEqual({
@@ -106,7 +106,7 @@ describe("properties", () => {
   });
 
   it("should get deep property", () => {
-    const O = chain<Person>().prop("addr").opt().prop("street");
+    const O = Z.chain<Person>().prop("addr").opt().prop("street");
     fc.assert(
       fc.property(
         fc.record({
@@ -115,14 +115,14 @@ describe("properties", () => {
           addr: fc.record({ street: fc.string(), zip: fc.constant(1000) }),
         }),
         (data) => {
-          expect(preview(O, data)).toEqual(data.addr.street);
+          expect(Z.preview(O, data)).toEqual(data.addr.street);
         }
       )
     );
   });
 
   it("should update deep property", () => {
-    const O = chain<Person>().prop("addr").opt().prop("street");
+    const O = Z.chain<Person>().prop("addr").opt().prop("street");
     fc.assert(
       fc.property(
         fc.record({
@@ -140,7 +140,7 @@ describe("properties", () => {
   });
 
   it("should update a deep property", () => {
-    const O = chain<C>().prop("b").prop("a").opt().prop("value");
+    const O = Z.chain<C>().prop("b").prop("a").opt().prop("value");
     const cArb = fc.tuple(fc.string(), fc.string(), fc.string()).map(
       ([a, b, c]): C => ({
         value: c,
@@ -169,7 +169,7 @@ describe("properties", () => {
   });
 
   it("should not update if an optional item at path is missing", () => {
-    const O = chain<C>().prop("b").prop("a").opt().prop("value");
+    const O = Z.chain<C>().prop("b").prop("a").opt().prop("value");
     const cArb = fc.tuple(fc.string(), fc.string()).map(
       ([b, c]): C => ({
         value: c,
