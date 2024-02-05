@@ -185,6 +185,17 @@ export function collect<S, A>(o: Optic<OpticKind, S, A>, s: S): A[] {
   return a;
 }
 
+export function update<S, A>(
+  o: Optic<OpticKind, S, A>,
+  f: (a: A) => A
+): (s: S) => S {
+  return o.update(f);
+}
+
+export function set<S, A>(o: Optic<OpticKind, S, A>, s: S, a: A): S {
+  return update(o, () => a)(s);
+}
+
 function _updateOpt<S, A>(
   get: (s: S) => A | undefined | null,
   set: (a: A, s: S) => S
@@ -207,6 +218,12 @@ function _update<S, A>(
     return r === a ? s : set(r, s);
   };
 }
+
+export const identity = <T>() =>
+  adapterOptic(
+    (t: T) => t,
+    (t) => t
+  );
 
 export const adapterOptic = <S, A>(
   get: (s: S) => A,
