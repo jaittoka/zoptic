@@ -48,7 +48,7 @@ export type Chain<O extends OpticKind, S, A> = Optic<O, S, A> & {
   ) => Chain<ComposeKind<O, Other>, S, B>;
 };
 
-function _chain<O extends OpticKind, S, A>(
+export function _chain<O extends OpticKind, S, A>(
   optic: Optic<O, S, A>
 ): Chain<O, S, A> {
   const self: Chain<O, S, A> = {
